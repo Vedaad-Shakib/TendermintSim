@@ -1,27 +1,23 @@
-// Copyright (c) 2018 IoTeX
-// This is an alpha (internal) release and is not suitable for production. This source code is provided 'as is' and no
-// warranties are given as to title or non-infringement, merchantability or fitness for purpose and, to the extent
-// permitted by law, all liability for your use of the code is disclaimed. This source code is governed by Apache
-// License 2.0 that can be found in the LICENSE file.
-
 package consensus
 
 import (
 	"context"
-	"encoding/hex"
 	"flag"
 	"fmt"
-	"log"
 	"net"
 	"os"
 	"runtime/pprof"
-	"strconv"
-	"time"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 
 	pb "github.com/tendermint/tendermint/simulator/proto/simulator"
+	"io/ioutil"
+	"github.com/tendermint/tendermint/abci/example/kvstore"
+	"github.com/tendermint/tendermint/types"
+	"github.com/tendermint/tendermint/node"
+	cfg "github.com/tendermint/tendermint/config"
+	"github.com/tendermint/tendermint/libs/log"
 )
 
 const (
@@ -38,9 +34,21 @@ type (
 
 var cpuprofile = flag.String("cpuprofile", "", "write cpu profile to file")
 
+var cfgSim = cfg.DefaultConfig()
+
 // Ping implements simulator.SimulatorServer
 func (s *server) Init(in *pb.InitRequest, stream pb.Simulator_InitServer) error {
 	nPlayers := in.NBF + in.NFS + in.NHonest
+
+	css := make([]*ConsensusState, nPlayers)
+	logger := log.NewTMLogger(log.NewSyncWriter(os.Stdout))
+	for i := 0; i < int(nPlayers); i++ {
+		n, err := node.DefaultNewNode(cfgSim, logger)
+		if err != nil {
+			fmt.Println("Error creating node")
+		}
+		css[i] = n.ConsensusState()
+	}
 
 	return nil
 }
