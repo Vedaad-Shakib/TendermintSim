@@ -24,9 +24,10 @@ message Request {
 
 // The request message telling the server to initialize the necessary parameters
 message InitRequest {
-  int32 nHonest = 1;
-  int32 nFS	= 2;
-  int32 nBF	= 3;
+  int32 nHonest      = 1;
+  int32 nFS	     = 2;
+  int32 nBF	     = 3;
+  int32 nConnections = 4;
 }
 
 // The response message returning the output of the consensus engine

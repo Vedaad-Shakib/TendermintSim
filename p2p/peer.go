@@ -102,6 +102,10 @@ type peer struct {
 	Data *cmn.CMap
 }
 
+func NewPeerSim(id int) *peer {
+	return &peer{nodeInfo: NodeInfo{ID: ID(id)}}
+}
+
 func newPeer(
 	pc peerConn,
 	mConfig tmconn.MConnConfig,

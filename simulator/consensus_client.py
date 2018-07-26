@@ -17,14 +17,14 @@ class Consensus:
         self.stub = simulator_pb2_grpc.SimulatorStub(self.channel)
 
     @staticmethod
-    def initConsensus(nHonest, nFS, nBF):
+    def initConsensus(nHonest, nFS, nBF, nConnections):
         """Static message which sends a request to initialize n consensus schemes on the consensus server"""
 
         print("sent init request with %d honest nodes, %d failure stop nodes, and %d byzantine fault nodes to consensus engine" % (nHonest, nFS, nBF))
         channel = grpc.insecure_channel('localhost:50051')
         stub = simulator_pb2_grpc.SimulatorStub(channel)
         
-        response = stub.Init(simulator_pb2.InitRequest(nHonest=nHonest, nFS=nFS, nBF=nBF))
+        response = stub.Init(simulator_pb2.InitRequest(nHonest=nHonest, nFS=nFS, nBF=nBF, nConnections=nConnections))
         response = [[r.playerID, (r.internalMsgType, r.value)] for r in response]
 
         return response
