@@ -26,6 +26,8 @@ import (
 	"os/exec"
 	"bytes"
 	"strconv"
+	"github.com/tendermint/tendermint/p2p"
+	cmn "github.com/tendermint/tendermint/libs/common"
 )
 
 const (
@@ -37,13 +39,14 @@ const (
 type (
 	server struct {
 		nodes []*consensus.ConsensusReactor
+		peers [][]p2p.Peer
 	}
 )
 
 // Ping implements simulator.SimulatorServer
 func (s *server) Init(in *pb.InitRequest, stream pb.Simulator_InitServer) error {
 	nPlayers := int(in.NBF) + int(in.NFS) + int(in.NHonest)
-	//nConnections := in.NConnections
+	nConnections := int(in.NConnections)
 
 	// create the genesis, private validator, config files
 	cmd := exec.Command("tendermint", "testnet", "--v", strconv.Itoa(nPlayers))
@@ -56,7 +59,14 @@ func (s *server) Init(in *pb.InitRequest, stream pb.Simulator_InitServer) error 
 		fmt.Println(err, stderr.String())
 	}
 
-	for i := 0; i < int(nPlayers); i++ {
+	s.nodes = make([]*consensus.ConsensusReactor, nPlayers)
+	s.peers = make([][]*p2p.Peer, nPlayers)
+	for i := 0; i < nPlayers; i++ {
+		s.peers[i] = make([]*p2p.Peer, nConnections)
+	}
+
+	for i := 0; i < nPlayers; i++ {
+		fmt.Printf("initializing ConsensusReactor %d\n", i)
 		cfgSim := config.DefaultConfig()
 		cfgSim.SetRoot(fmt.Sprintf("/Users/vedaad/go/src/github.com/tendermint/tendermint/simulator/mytestnet/node%d/config", i))
 
@@ -95,7 +105,25 @@ func (s *server) Init(in *pb.InitRequest, stream pb.Simulator_InitServer) error 
 
 		cr := consensus.NewConsensusReactor(cs, false)
 
+		// create peers for each node
+		for j := 0; j < nConnections; j++ {
+			pr := p2p.CreateRandomPeer(true)
+			cr.AddPeer(pr)
+			s.peers[i][j] = pr
+		}
+
+		cr.Start()
+
+		// wait until new round is started
+		out := make(chan interface{}, 1)
+		err = eventBus.Subscribe(context.Background(), fmt.Sprintf("node%d", i), types.EventQueryNewRound, out)
+		if err != nil {
+			fmt.Println("cannot susbcribe to new round event")
+		}
+		<-out
+
 		s.nodes[i] = cr
+		fmt.Printf("initialized ConsensusReactor %d\n", i)
 	}
 
 	return nil
@@ -105,6 +133,7 @@ func (s *server) Init(in *pb.InitRequest, stream pb.Simulator_InitServer) error 
 func (s *server) Ping(in *pb.Request, stream pb.Simulator_PingServer) error {
 	fmt.Println()
 
+	
 
 	fmt.Println("closed message stream")
 	return nil
