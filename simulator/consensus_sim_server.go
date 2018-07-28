@@ -9,7 +9,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 
-	pb "github.com/tendermint/tendermint/simulator/proto/simulator"
+	pbsim "github.com/tendermint/tendermint/simulator/proto/simulator"
 	"github.com/tendermint/tendermint/consensus"
 	"github.com/tendermint/tendermint/config"
 	"github.com/tendermint/tendermint/types"
@@ -27,6 +27,7 @@ import (
 	"bytes"
 	"strconv"
 	"github.com/tendermint/tendermint/p2p"
+	"time"
 )
 
 const (
@@ -45,7 +46,7 @@ type (
 )
 
 // Ping implements simulator.SimulatorServer
-func (s *server) Init(in *pb.InitRequest, stream pb.Simulator_InitServer) error {
+func (s *server) Init(in *pbsim.InitRequest, stream pbsim.Simulator_InitServer) error {
 	nConnections := int(in.NConnections)
 	connectionsRaw := in.Connections
 
@@ -143,14 +144,30 @@ func (s *server) Init(in *pb.InitRequest, stream pb.Simulator_InitServer) error 
 }
 
 // Ping implements simulator.SimulatorServer
-func (s *server) Ping(in *pb.Request, stream pb.Simulator_PingServer) error {
+func (s *server) Ping(in *pbsim.Request, stream pbsim.Simulator_PingServer) error {
 	fmt.Println("closed message stream")
+	rec := int(in.Recipient)
+	sen := int(in.Sender)
+
+	conR := s.nodes[rec]
+	peer := s.peers[sen]
+	peerState := s.peerState[sen]
+
+	conR.SetStream(&stream)
+	conR.Receive(byte(in.InternalMsgType), peer, in.Value)
+
+	time.Sleep(2*time.Second) // TODO: change this to a wait-until
+
+	conR.GossipDataRoutine(peer, &peerState, rec)
+	conR.GossipVotesRoutine(peer, &peerState, rec)
+	conR.QueryMaj23Routine(peer, &peerState, rec)
+
 	return nil
 }
 
-func (s *server) Exit(context context.Context, in *pb.Empty) (*pb.Empty, error) {
+func (s *server) Exit(context context.Context, in *pbsim.Empty) (*pbsim.Empty, error) {
 	defer os.Exit(0)
-	return &pb.Empty{}, nil
+	return &pbsim.Empty{}, nil
 }
 
 func main() {
@@ -161,7 +178,7 @@ func main() {
 		fmt.Println("failed to listen: %v", err)
 	}
 	s := grpc.NewServer()
-	pb.RegisterSimulatorServer(s, &server{})
+	pbsim.RegisterSimulatorServer(s, &server{})
 	// Register reflection service on gRPC server.
 	reflection.Register(s)
 	if err := s.Serve(lis); err != nil {

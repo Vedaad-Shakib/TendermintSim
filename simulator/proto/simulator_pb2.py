@@ -19,7 +19,7 @@ DESCRIPTOR = _descriptor.FileDescriptor(
   name='simulator.proto',
   package='simulator',
   syntax='proto3',
-  serialized_pb=_b('\n\x0fsimulator.proto\x12\tsimulator\"T\n\x07Request\x12\x11\n\trecipient\x18\x01 \x01(\x05\x12\x0e\n\x06sender\x18\x02 \x01(\x05\x12\x17\n\x0finternalMsgType\x18\x03 \x01(\r\x12\r\n\x05value\x18\x04 \x01(\t\"\xa3\x01\n\x0bInitRequest\x12\x0f\n\x07nHonest\x18\x01 \x01(\x05\x12\x0b\n\x03nFS\x18\x02 \x01(\x05\x12\x0b\n\x03nBF\x18\x03 \x01(\x05\x12\x14\n\x0cnConnections\x18\x04 \x01(\x05\x12\x36\n\x0b\x63onnections\x18\x05 \x03(\x0b\x32!.simulator.InitRequest.Connection\x1a\x1b\n\nConnection\x12\r\n\x05nodes\x18\x01 \x03(\x05\"W\n\x05Reply\x12\x13\n\x0bmessageType\x18\x01 \x01(\x05\x12\x17\n\x0finternalMsgType\x18\x02 \x01(\r\x12\r\n\x05value\x18\x03 \x01(\t\x12\x11\n\trecipient\x18\x04 \x01(\x05\"D\n\x08Proposal\x12\x10\n\x08playerID\x18\x01 \x01(\x05\x12\x17\n\x0finternalMsgType\x18\x02 \x01(\r\x12\r\n\x05value\x18\x03 \x01(\t\"\x07\n\x05\x45mpty2\xa4\x01\n\tSimulator\x12\x30\n\x04Ping\x12\x12.simulator.Request\x1a\x10.simulator.Reply\"\x00\x30\x01\x12\x37\n\x04Init\x12\x16.simulator.InitRequest\x1a\x13.simulator.Proposal\"\x00\x30\x01\x12,\n\x04\x45xit\x12\x10.simulator.Empty\x1a\x10.simulator.Empty\"\x00\x62\x06proto3')
+  serialized_pb=_b('\n\x0fsimulator.proto\x12\tsimulator\"T\n\x07Request\x12\x11\n\trecipient\x18\x01 \x01(\x05\x12\x0e\n\x06sender\x18\x02 \x01(\x05\x12\x17\n\x0finternalMsgType\x18\x03 \x01(\x05\x12\r\n\x05value\x18\x04 \x01(\x0c\"\xa3\x01\n\x0bInitRequest\x12\x0f\n\x07nHonest\x18\x01 \x01(\x05\x12\x0b\n\x03nFS\x18\x02 \x01(\x05\x12\x0b\n\x03nBF\x18\x03 \x01(\x05\x12\x14\n\x0cnConnections\x18\x04 \x01(\x05\x12\x36\n\x0b\x63onnections\x18\x05 \x03(\x0b\x32!.simulator.InitRequest.Connection\x1a\x1b\n\nConnection\x12\r\n\x05nodes\x18\x01 \x03(\x05\"W\n\x05Reply\x12\x13\n\x0bmessageType\x18\x01 \x01(\x05\x12\x17\n\x0finternalMsgType\x18\x02 \x01(\x05\x12\r\n\x05value\x18\x03 \x01(\x0c\x12\x11\n\trecipient\x18\x04 \x01(\x05\"D\n\x08Proposal\x12\x10\n\x08playerID\x18\x01 \x01(\x05\x12\x17\n\x0finternalMsgType\x18\x02 \x01(\r\x12\r\n\x05value\x18\x03 \x01(\t\"\x07\n\x05\x45mpty2\xa4\x01\n\tSimulator\x12\x30\n\x04Ping\x12\x12.simulator.Request\x1a\x10.simulator.Reply\"\x00\x30\x01\x12\x37\n\x04Init\x12\x16.simulator.InitRequest\x1a\x13.simulator.Proposal\"\x00\x30\x01\x12,\n\x04\x45xit\x12\x10.simulator.Empty\x1a\x10.simulator.Empty\"\x00\x62\x06proto3')
 )
 
 
@@ -48,15 +48,15 @@ _REQUEST = _descriptor.Descriptor(
       options=None, file=DESCRIPTOR),
     _descriptor.FieldDescriptor(
       name='internalMsgType', full_name='simulator.Request.internalMsgType', index=2,
-      number=3, type=13, cpp_type=3, label=1,
+      number=3, type=5, cpp_type=1, label=1,
       has_default_value=False, default_value=0,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       options=None, file=DESCRIPTOR),
     _descriptor.FieldDescriptor(
       name='value', full_name='simulator.Request.value', index=3,
-      number=4, type=9, cpp_type=9, label=1,
-      has_default_value=False, default_value=_b("").decode('utf-8'),
+      number=4, type=12, cpp_type=9, label=1,
+      has_default_value=False, default_value=_b(""),
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       options=None, file=DESCRIPTOR),
@@ -182,15 +182,15 @@ _REPLY = _descriptor.Descriptor(
       options=None, file=DESCRIPTOR),
     _descriptor.FieldDescriptor(
       name='internalMsgType', full_name='simulator.Reply.internalMsgType', index=1,
-      number=2, type=13, cpp_type=3, label=1,
+      number=2, type=5, cpp_type=1, label=1,
       has_default_value=False, default_value=0,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       options=None, file=DESCRIPTOR),
     _descriptor.FieldDescriptor(
       name='value', full_name='simulator.Reply.value', index=2,
-      number=3, type=9, cpp_type=9, label=1,
-      has_default_value=False, default_value=_b("").decode('utf-8'),
+      number=3, type=12, cpp_type=9, label=1,
+      has_default_value=False, default_value=_b(""),
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       options=None, file=DESCRIPTOR),

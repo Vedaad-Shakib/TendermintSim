@@ -19,8 +19,8 @@ service Simulator {
 message Request {
   int32 recipient	 = 1;
   int32 sender           = 2;
-  uint32 internalMsgType = 3;
-  string value		 = 4;
+  int32 internalMsgType  = 3;
+  bytes value		 = 4;
 }
 
 // The request message telling the server to initialize the necessary parameters
@@ -40,8 +40,8 @@ message InitRequest {
 // The response message returning the output of the consensus engine
 message Reply {
   int32  messageType	 = 1;
-  uint32 internalMsgType = 2;
-  string value		 = 3;
+  int32  internalMsgType = 2;
+  bytes  value		 = 3;
   int32  recipient       = 4;
 }
 
