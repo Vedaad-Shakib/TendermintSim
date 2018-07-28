@@ -72,8 +72,14 @@ class Solver:
             elif ct == player.CTypes.ByzantineFault:
                 nBF = nPlayers
 
+
+        # create an array of player connections to pass to consensus engine
+        connections = []
+        for i in self.players:
+            connections.append(list(map(lambda x: x.id, i.connections)))
+
         # initializes consensus engines and gets the initial block proposals
-        response = consensus_client.Consensus.initConsensus(nHonest, nFS, nBF, self.N_CONNECTIONS)
+        response = consensus_client.Consensus.initConsensus(nHonest, nFS, nBF, self.N_CONNECTIONS, connections)
         
         # delay for 2 seconds to allow nodes to ramp up (matches delay in consensus code)
         time.sleep(2)

@@ -17,29 +17,35 @@ class Consensus:
         self.stub = simulator_pb2_grpc.SimulatorStub(self.channel)
 
     @staticmethod
-    def initConsensus(nHonest, nFS, nBF, nConnections):
+    def initConsensus(nHonest, nFS, nBF, nConnections, connections):
         """Static message which sends a request to initialize n consensus schemes on the consensus server"""
 
         print("sent init request with %d honest nodes, %d failure stop nodes, and %d byzantine fault nodes to consensus engine" % (nHonest, nFS, nBF))
         channel = grpc.insecure_channel('localhost:50051')
         stub = simulator_pb2_grpc.SimulatorStub(channel)
-        
-        response = stub.Init(simulator_pb2.InitRequest(nHonest=nHonest, nFS=nFS, nBF=nBF, nConnections=nConnections))
+
+        connectionsRequest = [simulator_pb2.InitRequest.Connection(nodes=nodes) for nodes in connections]
+        response = stub.Init(simulator_pb2.InitRequest(nHonest=nHonest,
+                                                       nFS=nFS,
+                                                       nBF=nBF,
+                                                       nConnections=nConnections,
+                                                       connections=connectionsRequest))
         response = [[r.playerID, (r.internalMsgType, r.value)] for r in response]
 
         return response
 
-    def processMessage(self, msg):
+    def processMessage(self, sender, msg):
         """Sends a view state change message to consensus engine and returns responses"""
 
         # note: msg is a tuple: (msgType, msgBody)
         internalMsgType, value = msg
         
-        response = self.stub.Ping(simulator_pb2.Request(playerID=self.playerID,
+        response = self.stub.Ping(simulator_pb2.Request(sender=sender,
+                                                        recipient=self.playerID,
                                                         internalMsgType=internalMsgType,
                                                         value=value))
 
-        response = [[r.messageType, (r.internalMsgType, r.value)] for r in response]
+        response = [[r.recipient, r.messageType, (r.internalMsgType, r.value)] for r in response]
 
         # response is a list; each element: [messageType, (internalMsgType, value)]
         return response

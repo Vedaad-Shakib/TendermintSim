@@ -41,7 +41,6 @@ type ConsensusReactor struct {
 	mtx      sync.RWMutex
 	fastSync bool
 	eventBus *types.EventBus
-	peers    []p2p.Peer
 }
 
 // NewConsensusReactor returns a new ConsensusReactor with the given
@@ -147,10 +146,9 @@ func (conR *ConsensusReactor) GetChannels() []*p2p.ChannelDescriptor {
 // AddPeer implements Reactor
 func (conR *ConsensusReactor) AddPeer(peer p2p.Peer) {
 	if !conR.IsRunning() {
+		fmt.Println("error in conR; not running, exited AddPeer")
 		return
 	}
-
-	conR.peers = append(conR.peers, peer)
 
 	// Create peerState for peer
 	peerState := NewPeerState(peer).SetLogger(conR.Logger)
@@ -166,10 +164,6 @@ func (conR *ConsensusReactor) AddPeer(peer p2p.Peer) {
 	if !conR.FastSync() {
 		conR.sendNewRoundStepMessages(peer)
 	}
-}
-
-func (conR *ConsensusReactor) GetPeers() []p2p.Peer {
-	return conR.peers
 }
 
 // RemovePeer implements Reactor

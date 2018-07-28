@@ -9,7 +9,6 @@ import (
 	crypto "github.com/tendermint/tendermint/crypto"
 	cmn "github.com/tendermint/tendermint/libs/common"
 	"github.com/tendermint/tendermint/libs/log"
-
 	"github.com/tendermint/tendermint/config"
 	tmconn "github.com/tendermint/tendermint/p2p/conn"
 )
@@ -100,10 +99,6 @@ type peer struct {
 
 	// User data
 	Data *cmn.CMap
-}
-
-func NewPeerSim(id int) *peer {
-	return &peer{nodeInfo: NodeInfo{ID: ID(id)}}
 }
 
 func newPeer(

@@ -27,7 +27,6 @@ import (
 	"bytes"
 	"strconv"
 	"github.com/tendermint/tendermint/p2p"
-	cmn "github.com/tendermint/tendermint/libs/common"
 )
 
 const (
@@ -39,14 +38,28 @@ const (
 type (
 	server struct {
 		nodes []*consensus.ConsensusReactor
-		peers [][]p2p.Peer
+		peers []p2p.Peer
+		peerState []consensus.PeerState
+		connections [][]int
 	}
 )
 
 // Ping implements simulator.SimulatorServer
 func (s *server) Init(in *pb.InitRequest, stream pb.Simulator_InitServer) error {
-	nPlayers := int(in.NBF) + int(in.NFS) + int(in.NHonest)
 	nConnections := int(in.NConnections)
+	connectionsRaw := in.Connections
+
+	var connections [][]int
+	for i := 0; i < len(connectionsRaw); i++ {
+		var nodes []int
+		for j := 0; j < nConnections; j++ {
+			nodes = append(nodes, int(connectionsRaw[i].Nodes[j]))
+		}
+		connections = append(connections, nodes)
+	}
+	fmt.Println(connections)
+
+	nPlayers := int(in.NBF) + int(in.NFS) + int(in.NHonest)
 
 	// create the genesis, private validator, config files
 	cmd := exec.Command("tendermint", "testnet", "--v", strconv.Itoa(nPlayers))
@@ -60,9 +73,14 @@ func (s *server) Init(in *pb.InitRequest, stream pb.Simulator_InitServer) error 
 	}
 
 	s.nodes = make([]*consensus.ConsensusReactor, nPlayers)
-	s.peers = make([][]*p2p.Peer, nPlayers)
+	s.peers = make([]p2p.Peer, nPlayers)
+	s.connections = make([][]int, nPlayers)
+
 	for i := 0; i < nPlayers; i++ {
-		s.peers[i] = make([]*p2p.Peer, nConnections)
+		peer := p2p.CreateRandomPeer(true)
+		s.peers = append(s.peers, peer)
+		s.peerState = append(s.peerState, *consensus.NewPeerState(peer))
+		s.connections[i] = make([]int, nConnections)
 	}
 
 	for i := 0; i < nPlayers; i++ {
@@ -105,13 +123,6 @@ func (s *server) Init(in *pb.InitRequest, stream pb.Simulator_InitServer) error 
 
 		cr := consensus.NewConsensusReactor(cs, false)
 
-		// create peers for each node
-		for j := 0; j < nConnections; j++ {
-			pr := p2p.CreateRandomPeer(true)
-			cr.AddPeer(pr)
-			s.peers[i][j] = pr
-		}
-
 		cr.Start()
 
 		// wait until new round is started
@@ -122,8 +133,10 @@ func (s *server) Init(in *pb.InitRequest, stream pb.Simulator_InitServer) error 
 		}
 		<-out
 
+
 		s.nodes[i] = cr
 		fmt.Printf("initialized ConsensusReactor %d\n", i)
+
 	}
 
 	return nil
@@ -131,10 +144,6 @@ func (s *server) Init(in *pb.InitRequest, stream pb.Simulator_InitServer) error 
 
 // Ping implements simulator.SimulatorServer
 func (s *server) Ping(in *pb.Request, stream pb.Simulator_PingServer) error {
-	fmt.Println()
-
-	
-
 	fmt.Println("closed message stream")
 	return nil
 }

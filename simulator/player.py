@@ -18,6 +18,7 @@ import solver
 import consensus_client
 import consensus_failurestop
 
+# enum for defining the consensus types
 class CTypes:
     Honest         = 0
     FailureStop    = 1
@@ -29,9 +30,10 @@ class Player:
     MEAN_TX_FEE    = 0.2                                 # mean transaction fee
     STD_TX_FEE     = 0.05                                # std of transaction fee
     DUMMY_MSG_TYPE = 1999                                # if there are no messages to process, dummy message is sent to consensus engine
+    
     msgMap         = {(DUMMY_MSG_TYPE, ""): "dummy msg"} # maps message to message name for printing
 
-    correctHashes  = []
+    correctHashes  = [] # hashes of blocks proposed by HONEST consensus types
     
     def __init__(self, consensusType):
         """Creates a new Player object"""
@@ -39,7 +41,7 @@ class Player:
         self.id = Player.id # the player's id
         Player.id += 1                 
 
-        self.blockchain   = []    # blockchain (technically a blocklist)
+        self.blockchain   = []    # blockchain (simplified to a list)
         self.connections  = []    # list of connected players
         self.inbound      = []    # inbound messages from other players in the network at heartbeat r
         self.outbound     = []    # outbound messages to other players in the network at heartbeat r
@@ -62,27 +64,33 @@ class Player:
 
         print("player %d action started at heartbeat %f" % (self.id, heartbeat))
 
-        # self.inbound: [(msgType, msgBody), timestamp]
+        # self.inbound: [sender, (msgType, msgBody), timestamp]
         # print messages
         for msg, timestamp in self.inbound:
             print("received %s with timestamp %f" % (Player.msgMap[msg], timestamp))
 
-        if len(list(filter(lambda x: x[1] <= heartbeat, self.inbound))) == 0:
+        # if the Player received no messages before the current heartbeat, add a `dummy` message so the Player still pings the consensus in case the consensus has something it wants to return
+        # an example of when this is useful is in the first round when consensus proposes a message; the Player needs to ping it to receive the proposal
+        if len(list(filter(lambda x: x[2] <= heartbeat, self.inbound))) == 0:
             self.inbound += [[(Player.DUMMY_MSG_TYPE, ""), heartbeat]]
 
-        # process each message
-        for msg, timestamp in self.inbound:
+        # process each inbound message
+        for sender, msg, timestamp in self.inbound:
             # note: msg is a tuple: (msgType, msgBody)
+            # cannot see the message yet if the heartbeat is less than the timestamp
             if timestamp > heartbeat: continue
 
             if msg[0] != Player.DUMMY_MSG_TYPE and msg in self.seenMessages: continue
             self.seenMessages.add(msg)
 
             print("sent %s to consensus engine" % Player.msgMap[msg])
-            received = self.consensus.processMessage(msg)
+            received = self.consensus.processMessage(sender, msg)
             
-            for mt, v in received:
+            for recipient, mt, v in received:
                 # if mt = 2, the msgBody is comprised of message|blockHash
+                # recipient is the recipient of the message the consensus sends outwards
+                # mt is the message type (0 = view state change message, 1 = block committed, 2 = special case)
+                # v is message value
                 if "|" in v[1]:
                     separator = v[1].index("|")
                     blockHash = v[1][separator+1:]
@@ -93,23 +101,26 @@ class Player:
                 print("received %s from consensus engine" % Player.msgMap[v])
                 
                 if mt == 0: # view state change message
-                    self.outbound.append([v, timestamp])
+                    self.outbound.append([recipient, v, timestamp])
                 elif mt == 1: # block to be committed
                     self.blockchain.append(v[1])
                     self.nMsgsPassed.append(0)
                     self.timeCreated.append(timestamp)
                     print("committed %s to blockchain" % Player.msgMap[v])
                 else: # newly proposed block
-                    self.outbound.append([v, timestamp])
+                    self.outbound.append([recipient, v, timestamp])
                     print("PROPOSED %s BLOCK"%("HONEST" if self.consensusType == CTypes.Honest else "BYZANTINE"))
                     if self.consensusType != CTypes.ByzantineFault:
                         Player.correctHashes.append(blockHash)
                     else:
                         Player.correctHashes.append("")
 
-            if msg[0] != Player.DUMMY_MSG_TYPE and self.consensusType != CTypes.FailureStop: self.outbound.append([msg, timestamp])
+            # also gossip the current message
+            # I think this is not necessary for tendermint so I am commenting it out
+            '''if msg[0] != Player.DUMMY_MSG_TYPE and self.consensusType != CTypes.FailureStop:
+                self.outbound.append([msg, timestamp])'''
             
-        self.inbound = list(filter(lambda x: x[1] > heartbeat, self.inbound)) # get rid of processed messages
+        self.inbound = list(filter(lambda x: x[2] > heartbeat, self.inbound)) # get rid of processed messages
         
         return self.sendOutbound()
 
@@ -122,20 +133,22 @@ class Player:
         else:
             sentMsgs = True
 
-        ci = []
-        
-        for i in self.connections:
-            ci.append(i.id)
-            for message, timestamp in self.outbound:
-                self.nMsgsPassed[-1] += 1
-                dt = np.random.lognormal(self.NORMAL_MEAN, self.NORMAL_STD) # add propagation time to timestamp
-                print("sent %s to %s" % (Player.msgMap[message], i))
-                i.inbound.append([message, timestamp+dt])
+        ci = {}
+
+        for recipient, message, timestamp in self.outbound:
+            recipient = list(filter(lambda x: x.id == recipient, self.connections))[0] # recipient is an id; we want to find the player which corresponds to this id in the connections
+            ci.add(recipient)
+
+            sender = self.id
+            self.nMsgsPassed[-1] += 1
+            dt = np.random.lognormal(self.NORMAL_MEAN, self.NORMAL_STD) # add propagation time to timestamp
+            print("sent %s to %s" % (Player.msgMap[message], i))
+            recipient.inbound.append([sender, message, timestamp+dt])
 
         self.outbound.clear()
         print()
 
-        return ci, sentMsgs
+        return list(ci), sentMsgs
 
     def __str__(self):
         return "player %s" % (self.id)
