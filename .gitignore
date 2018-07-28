@@ -1,4 +1,7 @@
 *.pyc
+*.db
+*.html
+vendor/
 
 *.swp
 *.swo
