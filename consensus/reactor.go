@@ -441,6 +441,10 @@ func makeRoundStepMessages(rs *cstypes.RoundState) (nrsMsg *NewRoundStepMessage,
 	return
 }
 
+func (conR *ConsensusReactor) SendNewRoundStepMessages(peer p2p.Peer, recID int) {
+	conR.sendNewRoundStepMessages(peer, recID)
+}
+
 func (conR *ConsensusReactor) sendNewRoundStepMessages(peer p2p.Peer, recID int) {
 	rs := conR.conS.GetRoundState()
 	nrsMsg, csMsg := makeRoundStepMessages(rs)

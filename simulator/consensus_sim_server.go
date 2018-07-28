@@ -134,10 +134,15 @@ func (s *server) Init(in *pbsim.InitRequest, stream pbsim.Simulator_InitServer) 
 		}
 		<-out
 
+		// when new peers are added, this function is called
+		for _, v := range s.connections[i] {
+			cr.SendNewRoundStepMessages(s.peers[v], v)
+		}
+
+		// conR.sendNewRoundStepMessages(peer, -1)
 
 		s.nodes[i] = cr
 		fmt.Printf("initialized ConsensusReactor %d\n", i)
-
 	}
 
 	return nil
@@ -161,6 +166,9 @@ func (s *server) Ping(in *pbsim.Request, stream pbsim.Simulator_PingServer) erro
 	conR.GossipDataRoutine(peer, &peerState, rec)
 	conR.GossipVotesRoutine(peer, &peerState, rec)
 	conR.QueryMaj23Routine(peer, &peerState, rec)
+
+	conR.SetStream(nil)
+	// TODO: add unsent messages queue
 
 	return nil
 }
