@@ -6,6 +6,12 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"time"
+	"sync"
+	"os/exec"
+	"bytes"
+	"strconv"
+
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 
@@ -19,15 +25,10 @@ import (
 	"github.com/tendermint/tendermint/abci/example/kvstore"
 	bc "github.com/tendermint/tendermint/blockchain"
 	"github.com/tendermint/tendermint/abci/client"
-	"sync"
 	mempl "github.com/tendermint/tendermint/mempool"
 	"github.com/tendermint/tendermint/evidence"
 	"github.com/tendermint/tendermint/libs/log"
-	"os/exec"
-	"bytes"
-	"strconv"
 	"github.com/tendermint/tendermint/p2p"
-	"time"
 )
 
 const (
