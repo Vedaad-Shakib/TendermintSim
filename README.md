@@ -1,3 +1,6 @@
+# Simulation
+This is a WIP simulation of Tendermint (note: WIP)
+
 # Tendermint
 
 [Byzantine-Fault Tolerant](https://en.wikipedia.org/wiki/Byzantine_fault_tolerance)
