@@ -103,7 +103,7 @@ class Player:
                 if mt == 0: # view state change message
                     self.outbound.append([recipient, v, timestamp])
                 elif mt == 1: # block to be committed
-                    self.blockchain.append(v[1])
+                    self.blockchain.append(v[1]) # append block hash
                     self.nMsgsPassed.append(0)
                     self.timeCreated.append(timestamp)
                     print("committed %s to blockchain" % Player.msgMap[v])

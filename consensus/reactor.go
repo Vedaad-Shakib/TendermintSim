@@ -149,7 +149,7 @@ func (conR *ConsensusReactor) GetChannels() []*p2p.ChannelDescriptor {
 // AddPeer implements Reactor
 func (conR *ConsensusReactor) AddPeer(peer p2p.Peer) {
 	if !conR.IsRunning() {
-		fmt.Println("error in conR; not running, exited AddPeer")
+		panic("error in conR; not running, exited AddPeer")
 		return
 	}
 
@@ -454,7 +454,7 @@ func (conR *ConsensusReactor) sendNewRoundStepMessages(peer p2p.Peer, recID int)
 			Value: cdc.MustMarshalBinaryBare(nrsMsg),
 			Recipient: int32(recID)}
 		if err := conR.stream.Send(msgSim); err != nil {
-			fmt.Println("error in sendNewRoundStepMessage: ", err)
+			panic(fmt.Sprintf("error in sendNewRoundStepMessage: ", err))
 		}
 	}
 	if csMsg != nil {
@@ -463,7 +463,7 @@ func (conR *ConsensusReactor) sendNewRoundStepMessages(peer p2p.Peer, recID int)
 			Value: cdc.MustMarshalBinaryBare(csMsg),
 			Recipient: int32(recID)}
 		if err := conR.stream.Send(msgSim); err != nil {
-			fmt.Println("error in sendNewRoundStepMessage: ", err)
+			panic(fmt.Sprintf("error in sendNewRoundStepMessage: ", err))
 		}
 	}
 }
@@ -472,6 +472,7 @@ func (conR *ConsensusReactor) SetStream(stream *pbsim.Simulator_PingServer) {
 	fmt.Println("Set stream")
 
 	conR.stream = *stream
+	conR.conS.stream = *stream
 }
 
 func (conR *ConsensusReactor) GossipDataRoutine(peer p2p.Peer, ps *PeerState, recID int) {
@@ -508,7 +509,7 @@ func (conR *ConsensusReactor) gossipDataRoutine(peer p2p.Peer, ps *PeerState, re
 			if err := conR.stream.Send(msgSim); err == nil {
 				ps.SetHasProposalBlockPart(prs.Height, prs.Round, index)
 			} else {
-				fmt.Println("error in gossipDataRoutine: ", err)
+				panic(fmt.Sprintf("error in gossipDataRoutine: ", err))
 			}
 			// instead of returning, call the function again
 			conR.gossipDataRoutine(peer, ps, recID)
@@ -559,7 +560,7 @@ func (conR *ConsensusReactor) gossipDataRoutine(peer p2p.Peer, ps *PeerState, re
 			if err := conR.stream.Send(msgSim); err == nil {
 				ps.SetHasProposal(rs.Proposal)
 			} else {
-				fmt.Println("error in gossipDataRoutine: ", err)
+				panic(fmt.Sprintf("error in gossipDataRoutine: ", err))
 			}
 		}
 		// ProposalPOL: lets peer know which POL votes we have so far.
@@ -579,7 +580,7 @@ func (conR *ConsensusReactor) gossipDataRoutine(peer p2p.Peer, ps *PeerState, re
 				Value: cdc.MustMarshalBinaryBare(msg),
 				Recipient: int32(recID)}
 			if err := conR.stream.Send(msgSim); err != nil {
-				fmt.Println("error in gossipDataRoutine: ", err)
+				panic(fmt.Sprintf("error in gossipDataRoutine: ", err))
 			}
 		}
 	}
@@ -626,7 +627,7 @@ func (conR *ConsensusReactor) gossipDataForCatchup(logger log.Logger, rs *cstype
 		if err := conR.stream.Send(msgSim); err == nil {
 			ps.SetHasProposalBlockPart(prs.Height, prs.Round, index)
 		} else {
-			fmt.Println("error in gossipDataForCatchup: ", err)
+			panic(fmt.Sprintf("error in gossipDataForCatchup: ", err))
 		}
 		return
 	}
@@ -794,7 +795,7 @@ func (conR *ConsensusReactor) queryMaj23Routine(peer p2p.Peer, ps *PeerState, re
 					Value: cdc.MustMarshalBinaryBare(msg),
 					Recipient: int32(recID)}
 				if err := conR.stream.Send(msgSim); err != nil {
-					fmt.Println("error in queryMaj23Routine: ", err)
+					panic(fmt.Sprintf("error in queryMaj23Routine: ", err))
 				}
 			}
 		}
@@ -818,7 +819,7 @@ func (conR *ConsensusReactor) queryMaj23Routine(peer p2p.Peer, ps *PeerState, re
 					Value: cdc.MustMarshalBinaryBare(msg),
 					Recipient: int32(recID)}
 				if err := conR.stream.Send(msgSim); err != nil {
-					fmt.Println("error in queryMaj23Routine: ", err)
+					panic(fmt.Sprintf("error in queryMaj23Routine: ", err))
 				}
 			}
 		}
@@ -842,7 +843,7 @@ func (conR *ConsensusReactor) queryMaj23Routine(peer p2p.Peer, ps *PeerState, re
 					Value: cdc.MustMarshalBinaryBare(msg),
 					Recipient: int32(recID)}
 				if err := conR.stream.Send(msgSim); err != nil {
-					fmt.Println("error in queryMaj23Routine: ", err)
+					panic(fmt.Sprintf("error in queryMaj23Routine: ", err))
 				}
 			}
 		}
@@ -869,7 +870,7 @@ func (conR *ConsensusReactor) queryMaj23Routine(peer p2p.Peer, ps *PeerState, re
 				Value: cdc.MustMarshalBinaryBare(msg),
 				Recipient: int32(recID)}
 			if err := conR.stream.Send(msgSim); err != nil {
-				fmt.Println("error in queryMaj23Routine: ", err)
+				panic(fmt.Sprintf("error in queryMaj23Routine: ", err))
 			}
 		}
 	}
@@ -1034,7 +1035,7 @@ func (ps *PeerState) PickSendVote(votes types.VoteSetReader, recID int, conR *Co
 		err := conR.stream.Send(msgSim)
 
 		if err != nil {
-			fmt.Println("error in sendNewRoundStepMessage: ", err)
+			panic(fmt.Sprintf("error in sendNewRoundStepMessage: ", err))
 		}
 
 		return err == nil

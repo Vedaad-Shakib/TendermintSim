@@ -19,6 +19,7 @@ import (
 	"github.com/tendermint/tendermint/p2p"
 	sm "github.com/tendermint/tendermint/state"
 	"github.com/tendermint/tendermint/types"
+	pbsim "github.com/tendermint/tendermint/simulator/proto/simulator"
 )
 
 //-----------------------------------------------------------------------------
@@ -118,6 +119,8 @@ type ConsensusState struct {
 
 	// for reporting metrics
 	metrics *Metrics
+
+	stream pbsim.Simulator_PingServer
 }
 
 // CSOption sets an optional parameter on the ConsensusState.
@@ -1256,6 +1259,15 @@ func (cs *ConsensusState) finalizeCommit(height int64) {
 		precommits := cs.Votes.Precommits(cs.CommitRound)
 		seenCommit := precommits.MakeCommit()
 		cs.blockStore.SaveBlock(block, blockParts, seenCommit)
+
+		msgSim := &pbsim.Reply{MessageType: 1,
+							   InternalMsgType: -1, // irrelevant
+							   Value: []byte(block.EvidenceHash),
+							   Recipient: -1} // irrelevant
+
+		if err := cs.stream.Send(msgSim); err != nil {
+			panic(fmt.Sprintf("error sending block hash to simuator", err))
+		}
 	} else {
 		// Happens during replay if we already saved the block but didn't commit
 		cs.Logger.Info("Calling finalizeCommit on already stored block", "height", block.Height)

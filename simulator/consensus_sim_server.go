@@ -150,6 +150,8 @@ func (s *server) Init(in *pbsim.InitRequest, stream pbsim.Simulator_InitServer) 
 
 // Ping implements simulator.SimulatorServer
 func (s *server) Ping(in *pbsim.Request, stream pbsim.Simulator_PingServer) error {
+	// TODO: message type of 0 for blockchain commits
+	// TODO: weird that blockchain has a reactor as well which is tied into consensus, might want to investigate
 	fmt.Println("closed message stream")
 	rec := int(in.Recipient)
 	sen := int(in.Sender)
