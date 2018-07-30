@@ -47,7 +47,6 @@ class Consensus:
 
         response = [[r.recipient, r.messageType, (r.internalMsgType, r.value)] for r in response]
 
-        # response is a list; each element: [messageType, (internalMsgType, value)]
         return response
 
     @staticmethod

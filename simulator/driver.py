@@ -31,7 +31,7 @@ def drive(opts):
 
     start_time = time.time()
 
-    ALPHA = 0.8 # scaling constant -- simulation updates 1//(alpha*latency) times per heartbeat
+    ALPHA = 1 # scaling constant -- simulation updates 1//(alpha*latency) times per heartbeat
     opts["D_HEARTBEAT"] = opts["MEAN_PROP_TIME"] * ALPHA
     opts["N_ROUNDS"]    = math.ceil(opts["TIME_TO_SIM"] / opts["D_HEARTBEAT"])
     

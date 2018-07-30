@@ -44,6 +44,7 @@ type ConsensusReactor struct {
 	eventBus *types.EventBus
 
 	stream pbsim.Simulator_PingServer
+	unsent []*pbsim.Reply
 }
 
 // NewConsensusReactor returns a new ConsensusReactor with the given
@@ -54,7 +55,23 @@ func NewConsensusReactor(consensusState *ConsensusState, fastSync bool) *Consens
 		fastSync: fastSync,
 	}
 	conR.BaseReactor = *p2p.NewBaseReactor("ConsensusReactor", conR)
+	conR.unsent = make([]*pbsim.Reply, 0)
 	return conR
+}
+
+// SendUnsent sends all the unsent messages that were not able to be sent previously
+func (conR *ConsensusReactor) SendUnsent() {
+	var errs []error
+	for i := 0; i < len(conR.unsent); i++ {
+		err := conR.stream.Send(conR.unsent[i])
+		if err != nil {
+			errs = append(errs, err)
+		}
+	}
+	if len(errs) > 0 {
+		panic(fmt.Sprintf("failed to send unsent messages", errs))
+	}
+	conR.unsent = make([]*pbsim.Reply, 0)
 }
 
 // OnStart implements BaseService by subscribing to events, which later will be
@@ -453,8 +470,9 @@ func (conR *ConsensusReactor) sendNewRoundStepMessages(peer p2p.Peer, recID int)
 			InternalMsgType: int32(StateChannel),
 			Value: cdc.MustMarshalBinaryBare(nrsMsg),
 			Recipient: int32(recID)}
-		if err := conR.stream.Send(msgSim); err != nil {
-			panic(fmt.Sprintf("error in sendNewRoundStepMessage: ", err))
+		if conR.stream == nil || conR.stream.Send(msgSim) != nil {
+			fmt.Println("error sending message in sendNewRoundStepMessage, msg queued for sending")
+			conR.unsent = append(conR.unsent, msgSim)
 		}
 	}
 	if csMsg != nil {
@@ -462,8 +480,9 @@ func (conR *ConsensusReactor) sendNewRoundStepMessages(peer p2p.Peer, recID int)
 			InternalMsgType: int32(StateChannel),
 			Value: cdc.MustMarshalBinaryBare(csMsg),
 			Recipient: int32(recID)}
-		if err := conR.stream.Send(msgSim); err != nil {
-			panic(fmt.Sprintf("error in sendNewRoundStepMessage: ", err))
+		if conR.stream == nil || conR.stream.Send(msgSim) != nil {
+			fmt.Println("error sending message in sendNewRoundStepMessage")
+			conR.unsent = append(conR.unsent, msgSim)
 		}
 	}
 }
@@ -471,7 +490,13 @@ func (conR *ConsensusReactor) sendNewRoundStepMessages(peer p2p.Peer, recID int)
 func (conR *ConsensusReactor) SetStream(stream *pbsim.Simulator_PingServer) {
 	fmt.Println("Set stream")
 
-	conR.stream = *stream
+	if stream == nil {
+		conR.stream      = nil
+		conR.conS.stream = nil
+		return
+	}
+
+	conR.stream      = *stream
 	conR.conS.stream = *stream
 }
 
@@ -485,6 +510,7 @@ func (conR *ConsensusReactor) gossipDataRoutine(peer p2p.Peer, ps *PeerState, re
 	logger := conR.Logger.With("peer", peer)
 
 	// Manage disconnects from self or peer.
+	fmt.Println(peer == nil, conR == nil)
 	if !peer.IsRunning() || !conR.IsRunning() {
 		logger.Info("Stopping gossipDataRoutine for peer")
 		return
@@ -596,12 +622,12 @@ func (conR *ConsensusReactor) gossipDataForCatchup(logger log.Logger, rs *cstype
 		if blockMeta == nil {
 			logger.Error("Failed to load block meta",
 				"ourHeight", rs.Height, "blockstoreHeight", conR.conS.blockStore.Height())
-			time.Sleep(conR.conS.config.PeerGossipSleep())
+			//time.Sleep(conR.conS.config.PeerGossipSleep())
 			return
 		} else if !blockMeta.BlockID.PartsHeader.Equals(prs.ProposalBlockPartsHeader) {
 			logger.Info("Peer ProposalBlockPartsHeader mismatch, sleeping",
 				"blockPartsHeader", blockMeta.BlockID.PartsHeader, "peerBlockPartsHeader", prs.ProposalBlockPartsHeader)
-			time.Sleep(conR.conS.config.PeerGossipSleep())
+			//time.Sleep(conR.conS.config.PeerGossipSleep())
 			return
 		}
 		// Load the part
@@ -609,7 +635,7 @@ func (conR *ConsensusReactor) gossipDataForCatchup(logger log.Logger, rs *cstype
 		if part == nil {
 			logger.Error("Could not load part", "index", index,
 				"blockPartsHeader", blockMeta.BlockID.PartsHeader, "peerBlockPartsHeader", prs.ProposalBlockPartsHeader)
-			time.Sleep(conR.conS.config.PeerGossipSleep())
+			//time.Sleep(conR.conS.config.PeerGossipSleep())
 			return
 		}
 		// Send the part
@@ -632,7 +658,7 @@ func (conR *ConsensusReactor) gossipDataForCatchup(logger log.Logger, rs *cstype
 		return
 	}
 	//logger.Info("No parts to send in catch-up, sleeping")
-	time.Sleep(conR.conS.config.PeerGossipSleep())
+	//time.Sleep(conR.conS.config.PeerGossipSleep())
 }
 
 func (conR *ConsensusReactor) GossipVotesRoutine(peer p2p.Peer, ps *PeerState, recID int) {
@@ -641,6 +667,7 @@ func (conR *ConsensusReactor) GossipVotesRoutine(peer p2p.Peer, ps *PeerState, r
 
 func (conR *ConsensusReactor) gossipVotesRoutine(peer p2p.Peer, ps *PeerState, recID int) {
 	logger := conR.Logger.With("peer", peer)
+	fmt.Println("entered gossipVotesRoutine")
 
 	// Simple hack to throttle logs upon sleep.
 	var sleeping = 0
@@ -703,7 +730,7 @@ func (conR *ConsensusReactor) gossipVotesRoutine(peer p2p.Peer, ps *PeerState, r
 		sleeping = 1
 	}
 
-	time.Sleep(conR.conS.config.PeerGossipSleep())
+	//time.Sleep(conR.conS.config.PeerGossipSleep())
 	return
 }
 

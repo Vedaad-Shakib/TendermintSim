@@ -31,7 +31,7 @@ class Player:
     STD_TX_FEE     = 0.05                                # std of transaction fee
     DUMMY_MSG_TYPE = 1999                                # if there are no messages to process, dummy message is sent to consensus engine
     
-    msgMap         = {(DUMMY_MSG_TYPE, ""): "dummy msg"} # maps message to message name for printing
+    msgMap         = {(DUMMY_MSG_TYPE, bytes()): "dummy msg"} # maps message to message name for printing
 
     correctHashes  = [] # hashes of blocks proposed by HONEST consensus types
     
@@ -66,13 +66,13 @@ class Player:
 
         # self.inbound: [sender, (msgType, msgBody), timestamp]
         # print messages
-        for msg, timestamp in self.inbound:
-            print("received %s with timestamp %f" % (Player.msgMap[msg], timestamp))
+        for sender, msg, timestamp in self.inbound:
+            print("received %s from %s with timestamp %f" % (Player.msgMap[msg], sender, timestamp))
 
         # if the Player received no messages before the current heartbeat, add a `dummy` message so the Player still pings the consensus in case the consensus has something it wants to return
         # an example of when this is useful is in the first round when consensus proposes a message; the Player needs to ping it to receive the proposal
         if len(list(filter(lambda x: x[2] <= heartbeat, self.inbound))) == 0:
-            self.inbound += [[(Player.DUMMY_MSG_TYPE, ""), heartbeat]]
+            self.inbound += [[-1, (Player.DUMMY_MSG_TYPE, bytes()), heartbeat]]
 
         # process each inbound message
         for sender, msg, timestamp in self.inbound:
@@ -91,10 +91,12 @@ class Player:
                 # recipient is the recipient of the message the consensus sends outwards
                 # mt is the message type (0 = view state change message, 1 = block committed, 2 = special case)
                 # v is message value
-                if "|" in v[1]:
+
+                # TODO: fix this
+                '''if "|" in v[1]:
                     separator = v[1].index("|")
                     blockHash = v[1][separator+1:]
-                    v = (v[0], v[1][:separator])
+                    v = (v[0], v[1][:separator])'''
 
                 if v not in Player.msgMap:
                     Player.msgMap[v] = "msg "+str(len(Player.msgMap))
@@ -133,7 +135,7 @@ class Player:
         else:
             sentMsgs = True
 
-        ci = {}
+        ci = set()
 
         for recipient, message, timestamp in self.outbound:
             recipient = list(filter(lambda x: x.id == recipient, self.connections))[0] # recipient is an id; we want to find the player which corresponds to this id in the connections
@@ -142,7 +144,7 @@ class Player:
             sender = self.id
             self.nMsgsPassed[-1] += 1
             dt = np.random.lognormal(self.NORMAL_MEAN, self.NORMAL_STD) # add propagation time to timestamp
-            print("sent %s to %s" % (Player.msgMap[message], i))
+            print("sent %s to %s" % (Player.msgMap[message], recipient.id))
             recipient.inbound.append([sender, message, timestamp+dt])
 
         self.outbound.clear()
@@ -155,6 +157,9 @@ class Player:
 
     def __repr__(self):
         return "player %s" % (self.id)
+
+    def __hash__(self):
+        return self.id
         
 
             

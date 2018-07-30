@@ -2,6 +2,10 @@
 *.db
 *.html
 vendor/
+*/mytestnet/
+mytestnet/
+*/__pycache__/
+__pycache__/
 
 *.swp
 *.swo

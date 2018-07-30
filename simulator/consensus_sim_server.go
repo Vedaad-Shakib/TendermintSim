@@ -48,20 +48,21 @@ type (
 
 // Ping implements simulator.SimulatorServer
 func (s *server) Init(in *pbsim.InitRequest, stream pbsim.Simulator_InitServer) error {
-	nConnections := int(in.NConnections)
-	connectionsRaw := in.Connections
+	nPlayers   := int(in.NBF) + int(in.NFS) + int(in.NHonest)
+	s.nodes     = make([]*consensus.ConsensusReactor, nPlayers)
+	s.peers     = make([]p2p.Peer, nPlayers)
+	s.peerState = make([]consensus.PeerState, nPlayers)
 
-	var connections [][]int
-	for i := 0; i < len(connectionsRaw); i++ {
+	// make connections double array
+	for i := 0; i < len(in.Connections); i++ {
 		var nodes []int
-		for j := 0; j < nConnections; j++ {
-			nodes = append(nodes, int(connectionsRaw[i].Nodes[j]))
+		for j := 0; j < int(in.NConnections); j++ {
+			nodes = append(nodes, int(in.Connections[i].Nodes[j]))
 		}
-		connections = append(connections, nodes)
+		s.connections = append(s.connections, nodes)
 	}
-	fmt.Println(connections)
+	fmt.Println(s.connections)
 
-	nPlayers := int(in.NBF) + int(in.NFS) + int(in.NHonest)
 
 	// create the genesis, private validator, config files
 	cmd := exec.Command("tendermint", "testnet", "--v", strconv.Itoa(nPlayers))
@@ -74,17 +75,17 @@ func (s *server) Init(in *pbsim.InitRequest, stream pbsim.Simulator_InitServer) 
 		fmt.Println(err, stderr.String())
 	}
 
-	s.nodes = make([]*consensus.ConsensusReactor, nPlayers)
-	s.peers = make([]p2p.Peer, nPlayers)
-	s.connections = make([][]int, nPlayers)
-
+	// create peers and peerStates
 	for i := 0; i < nPlayers; i++ {
-		peer := p2p.CreateRandomPeer(true)
-		s.peers = append(s.peers, peer)
-		s.peerState = append(s.peerState, *consensus.NewPeerState(peer))
-		s.connections[i] = make([]int, nConnections)
+		peer      := p2p.CreateRandomPeer(true)
+		peerState := consensus.NewPeerState(peer)
+
+		peer.Set(types.PeerStateKey, peerState)
+		s.peers[i]     = peer
+		s.peerState[i] = *peerState
 	}
 
+	// create consensusReactors
 	for i := 0; i < nPlayers; i++ {
 		fmt.Printf("initializing ConsensusReactor %d\n", i)
 		cfgSim := config.DefaultConfig()
@@ -140,8 +141,6 @@ func (s *server) Init(in *pbsim.InitRequest, stream pbsim.Simulator_InitServer) 
 			cr.SendNewRoundStepMessages(s.peers[v], v)
 		}
 
-		// conR.sendNewRoundStepMessages(peer, -1)
-
 		s.nodes[i] = cr
 		fmt.Printf("initialized ConsensusReactor %d\n", i)
 	}
@@ -151,27 +150,29 @@ func (s *server) Init(in *pbsim.InitRequest, stream pbsim.Simulator_InitServer) 
 
 // Ping implements simulator.SimulatorServer
 func (s *server) Ping(in *pbsim.Request, stream pbsim.Simulator_PingServer) error {
-	// TODO: message type of 0 for blockchain commits
 	// TODO: weird that blockchain has a reactor as well which is tied into consensus, might want to investigate
-	fmt.Println("closed message stream")
-	rec := int(in.Recipient)
-	sen := int(in.Sender)
+	fmt.Println("opened message stream")
 
-	conR := s.nodes[rec]
-	peer := s.peers[sen]
-	peerState := s.peerState[sen]
+	conR := s.nodes[int(in.Recipient)]
 
 	conR.SetStream(&stream)
-	conR.Receive(byte(in.InternalMsgType), peer, in.Value)
 
-	time.Sleep(2*time.Second) // TODO: change this to a wait-until
+	// if it's a dummy message, don't pass it to consensus
+	if in.InternalMsgType != dummyMsgType {
+		conR.Receive(byte(in.InternalMsgType), s.peers[int(in.Sender)], in.Value)
+	}
 
-	conR.GossipDataRoutine(peer, &peerState, rec)
-	conR.GossipVotesRoutine(peer, &peerState, rec)
-	conR.QueryMaj23Routine(peer, &peerState, rec)
+	time.Sleep(100*time.Millisecond) // TODO: change this to a wait-until
+	conR.SendUnsent()
+
+	for _, v := range s.connections[int(in.Recipient)] {
+		conR.GossipDataRoutine(s.peers[v], &s.peerState[v], v)
+		conR.GossipVotesRoutine(s.peers[v], &s.peerState[v], v)
+		conR.QueryMaj23Routine(s.peers[v], &s.peerState[v], v)
+	}
 
 	conR.SetStream(nil)
-	// TODO: add unsent messages queue
+	fmt.Println("closed message stream")
 
 	return nil
 }
