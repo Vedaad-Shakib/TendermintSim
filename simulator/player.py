@@ -80,8 +80,8 @@ class Player:
             # cannot see the message yet if the heartbeat is less than the timestamp
             if timestamp > heartbeat: continue
 
-            if msg[0] != Player.DUMMY_MSG_TYPE and msg in self.seenMessages: continue
-            self.seenMessages.add(msg)
+            if msg[0] != Player.DUMMY_MSG_TYPE and (msg, sender) in self.seenMessages: continue
+            self.seenMessages.add((msg, sender))
 
             print("sent %s to consensus engine" % Player.msgMap[msg])
             received = self.consensus.processMessage(sender, msg)
@@ -138,6 +138,11 @@ class Player:
         ci = set()
 
         for recipient, message, timestamp in self.outbound:
+            if recipient == -1: # -1 means message is broadcast to all connections
+                for c in self.connections:
+                    self.outbound.append([c.id, message, timestamp])
+                continue
+            
             recipient = list(filter(lambda x: x.id == recipient, self.connections))[0] # recipient is an id; we want to find the player which corresponds to this id in the connections
             ci.add(recipient)
 

@@ -41,7 +41,7 @@ type (
 	server struct {
 		nodes []*consensus.ConsensusReactor
 		peers []p2p.Peer
-		peerState []consensus.PeerState
+		peerState []*consensus.PeerState
 		connections [][]int
 	}
 )
@@ -51,7 +51,7 @@ func (s *server) Init(in *pbsim.InitRequest, stream pbsim.Simulator_InitServer) 
 	nPlayers   := int(in.NBF) + int(in.NFS) + int(in.NHonest)
 	s.nodes     = make([]*consensus.ConsensusReactor, nPlayers)
 	s.peers     = make([]p2p.Peer, nPlayers)
-	s.peerState = make([]consensus.PeerState, nPlayers)
+	s.peerState = make([]*consensus.PeerState, nPlayers)
 
 	// make connections double array
 	for i := 0; i < len(in.Connections); i++ {
@@ -61,8 +61,6 @@ func (s *server) Init(in *pbsim.InitRequest, stream pbsim.Simulator_InitServer) 
 		}
 		s.connections = append(s.connections, nodes)
 	}
-	fmt.Println(s.connections)
-
 
 	// create the genesis, private validator, config files
 	cmd := exec.Command("tendermint", "testnet", "--v", strconv.Itoa(nPlayers))
@@ -79,10 +77,12 @@ func (s *server) Init(in *pbsim.InitRequest, stream pbsim.Simulator_InitServer) 
 	for i := 0; i < nPlayers; i++ {
 		peer      := p2p.CreateRandomPeer(true)
 		peerState := consensus.NewPeerState(peer)
-
+		peer.SetLogger(log.NewTMLogger(log.NewSyncWriter(os.Stdout)))
+		peerState.SetLogger(log.NewTMLogger(log.NewSyncWriter(os.Stdout)))
 		peer.Set(types.PeerStateKey, peerState)
+
 		s.peers[i]     = peer
-		s.peerState[i] = *peerState
+		s.peerState[i] = peerState
 	}
 
 	// create consensusReactors
@@ -90,6 +90,8 @@ func (s *server) Init(in *pbsim.InitRequest, stream pbsim.Simulator_InitServer) 
 		fmt.Printf("initializing ConsensusReactor %d\n", i)
 		cfgSim := config.DefaultConfig()
 		cfgSim.SetRoot(fmt.Sprintf("/Users/vedaad/go/src/github.com/tendermint/tendermint/simulator/mytestnet/node%d/config", i))
+		cfgSim.Consensus.SkipTimeoutCommit = true
+		cfgSim.FastSync = false
 
 		genDoc, err := types.GenesisDocFromFile(fmt.Sprintf("/Users/vedaad/go/src/github.com/tendermint/tendermint/simulator/mytestnet/node%d/config/genesis.json", i))
 		if err != nil {
@@ -119,14 +121,25 @@ func (s *server) Init(in *pbsim.InitRequest, stream pbsim.Simulator_InitServer) 
 		blockExec := sm.NewBlockExecutor(stateDB, log.TestingLogger(), proxyAppConnCon, mempool, evpool)
 		cs := consensus.NewConsensusState(cfgSim.Consensus, state, blockExec, blockStore, mempool, evpool)
 		cs.SetPrivValidator(pv)
+		cs.SetLogger(log.NewTMLogger(log.NewSyncWriter(os.Stdout)))
 
 		eventBus := types.NewEventBus()
-		eventBus.Start()
+		eventBus.SetLogger(log.NewTMLogger(log.NewSyncWriter(os.Stdout)))
+		if err := eventBus.Start(); err != nil {
+			panic(fmt.Sprintf("error starting eventBus", err))
+		}
 		cs.SetEventBus(eventBus)
 
 		cr := consensus.NewConsensusReactor(cs, false)
+		cr.SetLogger(log.NewTMLogger(log.NewSyncWriter(os.Stdout)))
 
-		cr.Start()
+		sw := p2p.NewSwitch(cfgSim.P2P)
+		sw.Start()
+		cr.SetSwitch(sw)
+
+		if err := cr.Start(); err != nil {
+			panic(fmt.Sprintf("error starting consensusReactor", err))
+		}
 
 		// wait until new round is started
 		out := make(chan interface{}, 1)
@@ -145,13 +158,16 @@ func (s *server) Init(in *pbsim.InitRequest, stream pbsim.Simulator_InitServer) 
 		fmt.Printf("initialized ConsensusReactor %d\n", i)
 	}
 
+	time.Sleep(10*time.Second)
 	return nil
 }
 
 // Ping implements simulator.SimulatorServer
 func (s *server) Ping(in *pbsim.Request, stream pbsim.Simulator_PingServer) error {
-	// TODO: weird that blockchain has a reactor as well which is tied into consensus, might want to investigate
-	fmt.Println("opened message stream")
+	// TODO: change connections so that it's 2 way
+	// TODO: create a 2d peer list instead of 1d peer list
+	fmt.Println()
+	fmt.Printf("Node %d pinged; opened message stream\n", in.Recipient)
 
 	conR := s.nodes[int(in.Recipient)]
 
@@ -166,9 +182,9 @@ func (s *server) Ping(in *pbsim.Request, stream pbsim.Simulator_PingServer) erro
 	conR.SendUnsent()
 
 	for _, v := range s.connections[int(in.Recipient)] {
-		conR.GossipDataRoutine(s.peers[v], &s.peerState[v], v)
-		conR.GossipVotesRoutine(s.peers[v], &s.peerState[v], v)
-		conR.QueryMaj23Routine(s.peers[v], &s.peerState[v], v)
+		conR.GossipDataRoutine(s.peers[v], s.peerState[v], v)
+		conR.GossipVotesRoutine(s.peers[v], s.peerState[v], v)
+		conR.QueryMaj23Routine(s.peers[v], s.peerState[v], v)
 	}
 
 	conR.SetStream(nil)
