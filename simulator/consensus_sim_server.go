@@ -40,8 +40,8 @@ const (
 type (
 	server struct {
 		nodes []*consensus.ConsensusReactor
-		peers []p2p.Peer
-		peerState []*consensus.PeerState
+		peers [][]p2p.Peer
+		peerState [][]*consensus.PeerState
 		connections [][]int
 	}
 )
@@ -50,8 +50,13 @@ type (
 func (s *server) Init(in *pbsim.InitRequest, stream pbsim.Simulator_InitServer) error {
 	nPlayers   := int(in.NBF) + int(in.NFS) + int(in.NHonest)
 	s.nodes     = make([]*consensus.ConsensusReactor, nPlayers)
-	s.peers     = make([]p2p.Peer, nPlayers)
-	s.peerState = make([]*consensus.PeerState, nPlayers)
+	s.peers     = make([][]p2p.Peer, nPlayers)
+	s.peerState = make([][]*consensus.PeerState, nPlayers)
+
+	for i := 0; i < nPlayers; i++ {
+		s.peers[i] = make([]p2p.Peer, nPlayers)
+		s.peerState[i] = make([]*consensus.PeerState, nPlayers)
+	}
 
 	// make connections double array
 	for i := 0; i < len(in.Connections); i++ {
@@ -75,14 +80,16 @@ func (s *server) Init(in *pbsim.InitRequest, stream pbsim.Simulator_InitServer) 
 
 	// create peers and peerStates
 	for i := 0; i < nPlayers; i++ {
-		peer      := p2p.CreateRandomPeer(true)
-		peerState := consensus.NewPeerState(peer)
-		peer.SetLogger(log.NewTMLogger(log.NewSyncWriter(os.Stdout)))
-		peerState.SetLogger(log.NewTMLogger(log.NewSyncWriter(os.Stdout)))
-		peer.Set(types.PeerStateKey, peerState)
+		for j := 0; j < nPlayers; j++ {
+			peer := p2p.CreateRandomPeer(true)
+			peerState := consensus.NewPeerState(peer)
+			peer.SetLogger(log.NewTMLogger(log.NewSyncWriter(os.Stdout)))
+			peerState.SetLogger(log.NewTMLogger(log.NewSyncWriter(os.Stdout)))
+			peer.Set(types.PeerStateKey, peerState)
 
-		s.peers[i]     = peer
-		s.peerState[i] = peerState
+			s.peers[i][j] = peer
+			s.peerState[i][j] = peerState
+		}
 	}
 
 	// create consensusReactors
@@ -164,27 +171,26 @@ func (s *server) Init(in *pbsim.InitRequest, stream pbsim.Simulator_InitServer) 
 
 // Ping implements simulator.SimulatorServer
 func (s *server) Ping(in *pbsim.Request, stream pbsim.Simulator_PingServer) error {
-	// TODO: change connections so that it's 2 way
-	// TODO: create a 2d peer list instead of 1d peer list
 	fmt.Println()
 	fmt.Printf("Node %d pinged; opened message stream\n", in.Recipient)
 
-	conR := s.nodes[int(in.Recipient)]
+	rec := int(in.Recipient)
+	conR := s.nodes[rec]
 
 	conR.SetStream(&stream)
 
 	// if it's a dummy message, don't pass it to consensus
 	if in.InternalMsgType != dummyMsgType {
-		conR.Receive(byte(in.InternalMsgType), s.peers[int(in.Sender)], in.Value)
+		conR.Receive(byte(in.InternalMsgType), s.peers[rec][int(in.Sender)], in.Value)
 	}
 
 	time.Sleep(100*time.Millisecond) // TODO: change this to a wait-until
 	conR.SendUnsent()
 
 	for _, v := range s.connections[int(in.Recipient)] {
-		conR.GossipDataRoutine(s.peers[v], s.peerState[v], v)
-		conR.GossipVotesRoutine(s.peers[v], s.peerState[v], v)
-		conR.QueryMaj23Routine(s.peers[v], s.peerState[v], v)
+		conR.GossipDataRoutine(s.peers[rec][v], s.peerState[rec][v], v)
+		conR.GossipVotesRoutine(s.peers[rec][v], s.peerState[rec][v], v)
+		conR.QueryMaj23Routine(s.peers[rec][v], s.peerState[rec][v], v)
 	}
 
 	conR.SetStream(nil)

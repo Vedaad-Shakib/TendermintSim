@@ -247,6 +247,11 @@ func (p *peer) IsOutbound() bool {
 	return p.peerConn.outbound
 }
 
+// Just so that the simulation works, does not interfere with functionality
+func (p *peer) IsRunning() bool {
+	return true
+}
+
 // IsPersistent returns true if the peer is persitent, false otherwise.
 func (p *peer) IsPersistent() bool {
 	return p.peerConn.persistent

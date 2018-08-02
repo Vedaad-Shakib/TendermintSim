@@ -84,11 +84,37 @@ class Solver:
         self.genGraph = opts["GRAPH"]
 
     def connectNetwork(self):
-        """Form the network of players through random assignment of connections"""
+        """Form the network of players through random assignment of connections
+           Note: currently connections are two-way connections"""
 
-        for i in range(len(self.players)):
+        if (len(self.players)*self.N_CONNECTIONS) % 2 != 0:
+            raise RuntimeError("n_players*n_connections must be even")
+
+        i = 0
+        while i < int(len(self.players)*self.N_CONNECTIONS/2):
+            a, b = random.sample(self.players, 2)
+            if a not in b.connections:
+                a.connections.append(b)
+                b.connections.append(a)
+                i += 1
+
+        while not all([len(i.connections) == self.N_CONNECTIONS for i in self.players]):
+            a = min(self.players, key=lambda x: len(x.connections))
+            b = max(self.players, key=lambda x: len(x.connections))
+            c = b.connections[-1] # pick random connection
+
+            # disconnect b, c
+            c.connections.remove(b)
+            b.connections.remove(c)
+
+            # connect a, c
+            a.connections.append(c)
+            c.connections.append(a)
+            
+                    
+        '''for i in range(len(self.players)):
             others = self.players[:i]+self.players[i+1:]
-            self.players[i].connections = random.sample(others, self.N_CONNECTIONS)
+            self.players[i].connections = random.sample(others, self.N_CONNECTIONS)'''
 
     def nextRound(self, heartbeat):
         """Simulates the next round"""

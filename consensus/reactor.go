@@ -61,6 +61,7 @@ func NewConsensusReactor(consensusState *ConsensusState, fastSync bool) *Consens
 
 // SendUnsent sends all the unsent messages that were not able to be sent previously
 func (conR *ConsensusReactor) SendUnsent() {
+	fmt.Println("sending unsent messages")
 	var errs []error
 	for i := 0; i < len(conR.unsent); i++ {
 		err := conR.stream.Send(conR.unsent[i])
@@ -222,6 +223,7 @@ func (conR *ConsensusReactor) Receive(chID byte, src p2p.Peer, msgBytes []byte) 
 	case StateChannel:
 		switch msg := msg.(type) {
 		case *NewRoundStepMessage:
+			fmt.Println("new round step message applied!")
 			ps.ApplyNewRoundStepMessage(msg)
 		case *CommitStepMessage:
 			ps.ApplyCommitStepMessage(msg)
@@ -401,16 +403,38 @@ func (conR *ConsensusReactor) broadcastProposalHeartbeatMessage(hb *types.Heartb
 	conR.Logger.Debug("Broadcasting proposal heartbeat message",
 		"height", hb.Height, "round", hb.Round, "sequence", hb.Sequence)
 	msg := &ProposalHeartbeatMessage{hb}
-	conR.Switch.Broadcast(StateChannel, cdc.MustMarshalBinaryBare(msg))
+
+	msgSim := &pbsim.Reply{MessageType: 0,
+		InternalMsgType: int32(StateChannel),
+		Value: cdc.MustMarshalBinaryBare(msg),
+		Recipient: int32(-1)}
+	if conR.stream == nil || conR.stream.Send(msgSim) != nil {
+		conR.unsent = append(conR.unsent, msgSim)
+		fmt.Println("message unable to be sent in broadcastProposalHeartbeatMessage, queued")
+	}
 }
 
 func (conR *ConsensusReactor) broadcastNewRoundStepMessages(rs *cstypes.RoundState) {
 	nrsMsg, csMsg := makeRoundStepMessages(rs)
 	if nrsMsg != nil {
-		conR.Switch.Broadcast(StateChannel, cdc.MustMarshalBinaryBare(nrsMsg))
+		msgSim := &pbsim.Reply{MessageType: 0,
+			InternalMsgType: int32(StateChannel),
+			Value: cdc.MustMarshalBinaryBare(nrsMsg),
+			Recipient: int32(-1)}
+		if conR.stream == nil || conR.stream.Send(msgSim) != nil {
+			conR.unsent = append(conR.unsent, msgSim)
+			fmt.Println("message unable to be sent in broadcastNewRoundStepMessages, queued")
+		}
 	}
 	if csMsg != nil {
-		conR.Switch.Broadcast(StateChannel, cdc.MustMarshalBinaryBare(csMsg))
+		msgSim := &pbsim.Reply{MessageType: 0,
+			InternalMsgType: int32(StateChannel),
+			Value: cdc.MustMarshalBinaryBare(csMsg),
+			Recipient: int32(-1)}
+		if conR.stream == nil || conR.stream.Send(msgSim) != nil {
+			conR.unsent = append(conR.unsent, msgSim)
+			fmt.Println("message unable to be sent in broadcastNewRoundStepMessages, queued")
+		}
 	}
 }
 
@@ -422,7 +446,14 @@ func (conR *ConsensusReactor) broadcastHasVoteMessage(vote *types.Vote) {
 		Type:   vote.Type,
 		Index:  vote.ValidatorIndex,
 	}
-	conR.Switch.Broadcast(StateChannel, cdc.MustMarshalBinaryBare(msg))
+	msgSim := &pbsim.Reply{MessageType: 0,
+		InternalMsgType: int32(StateChannel),
+		Value: cdc.MustMarshalBinaryBare(msg),
+		Recipient: int32(-1)}
+	if conR.stream == nil || conR.stream.Send(msgSim) != nil {
+		conR.unsent = append(conR.unsent, msgSim)
+		fmt.Println("message unable to be sent in broadcastHasVoteMessage, queued")
+	}
 	/*
 		// TODO: Make this broadcast more selective.
 		for _, peer := range conR.Switch.Peers().List() {
@@ -510,7 +541,6 @@ func (conR *ConsensusReactor) gossipDataRoutine(peer p2p.Peer, ps *PeerState, re
 	logger := conR.Logger.With("peer", peer)
 
 	// Manage disconnects from self or peer.
-	fmt.Println(peer == nil, conR == nil)
 	if !peer.IsRunning() || !conR.IsRunning() {
 		logger.Info("Stopping gossipDataRoutine for peer")
 		return
@@ -563,7 +593,7 @@ func (conR *ConsensusReactor) gossipDataRoutine(peer p2p.Peer, ps *PeerState, re
 
 	// If height and round don't match, sleep.
 	if (rs.Height != prs.Height) || (rs.Round != prs.Round) {
-		//logger.Info("Peer Height|Round mismatch, sleeping", "peerHeight", prs.Height, "peerRound", prs.Round, "peer", peer)
+		logger.Info("Peer Height|Round mismatch, sleeping", "peerHeight", prs.Height, "peerRound", prs.Round, "height", rs.Height, "round", rs.Round)
 		return
 	}
 
@@ -609,6 +639,8 @@ func (conR *ConsensusReactor) gossipDataRoutine(peer p2p.Peer, ps *PeerState, re
 				panic(fmt.Sprintf("error in gossipDataRoutine: ", err))
 			}
 		}
+	} else {
+		logger.Debug("proposal was unable to be sent", rs, prs)
 	}
 }
 
@@ -1274,10 +1306,15 @@ func (ps *PeerState) ApplyNewRoundStepMessage(msg *NewRoundStepMessage) {
 	ps.mtx.Lock()
 	defer ps.mtx.Unlock()
 
+
 	// Ignore duplicates or decreases
 	if CompareHRS(msg.Height, msg.Round, msg.Step, ps.PRS.Height, ps.PRS.Round, ps.PRS.Step) <= 0 {
 		return
 	}
+
+	fmt.Println(ps.peer.ID(), "asdf")
+
+	fmt.Println(ps.peer.ID(), "before", "message height", msg.Height, "message round", msg.Round, "message step", msg.Step, "peerState height", ps.PRS.Height, "peer state round", ps.PRS.Round, "peer state step", ps.PRS.Step)
 
 	// Just remember these values.
 	psHeight := ps.PRS.Height
@@ -1285,12 +1322,13 @@ func (ps *PeerState) ApplyNewRoundStepMessage(msg *NewRoundStepMessage) {
 	//psStep := ps.PRS.Step
 	psCatchupCommitRound := ps.PRS.CatchupCommitRound
 	psCatchupCommit := ps.PRS.CatchupCommit
-
 	startTime := time.Now().Add(-1 * time.Duration(msg.SecondsSinceStartTime) * time.Second)
 	ps.PRS.Height = msg.Height
 	ps.PRS.Round = msg.Round
 	ps.PRS.Step = msg.Step
 	ps.PRS.StartTime = startTime
+	fmt.Println(ps.peer.ID(), "after", "message height", msg.Height, "message round", msg.Round, "message step", msg.Step, "peerState height", ps.PRS.Height, "peer state round", ps.PRS.Round, "peer state step", ps.PRS.Step)
+
 	if psHeight != msg.Height || psRound != msg.Round {
 		ps.PRS.Proposal = false
 		ps.PRS.ProposalBlockPartsHeader = types.PartSetHeader{}

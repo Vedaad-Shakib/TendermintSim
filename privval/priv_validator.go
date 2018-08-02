@@ -221,7 +221,7 @@ func (pv *FilePV) signVote(chainID string, vote *types.Vote) error {
 			vote.Timestamp = timestamp
 			vote.Signature = pv.LastSignature
 		} else {
-			err = fmt.Errorf("Conflicting data")
+			err = fmt.Errorf("Conflicting data in signVote")
 		}
 		return err
 	}
@@ -260,7 +260,7 @@ func (pv *FilePV) signProposal(chainID string, proposal *types.Proposal) error {
 			proposal.Timestamp = timestamp
 			proposal.Signature = pv.LastSignature
 		} else {
-			err = fmt.Errorf("Conflicting data")
+			err = fmt.Errorf("Conflicting data in signProposal")
 		}
 		return err
 	}
